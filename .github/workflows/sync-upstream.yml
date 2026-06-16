@@ -27,14 +27,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          title="⚠️ Nightscout upstream sync failed"
+          title="Nightscout upstream sync failed"
           existing=$(gh issue list --repo "${{ github.repository }}" --state open --search "$title in:title" --json number --jq 'length')
           if [ "$existing" = "0" ]; then
-            gh issue create --repo "${{ github.repository }}" \
-              --title "$title" \
-              --body "The scheduled workflow that syncs \`master\` with upstream nightscout/cgm-remote-monitor failed. Run log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-Your Render site is unaffected and keeps running the last good version, but auto-updates are paused until this is resolved. Close this issue once fixed."
+            gh issue create --repo "${{ github.repository }}" --title "$title" --body "The daily upstream sync failed. Run log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} -- Your Render site keeps running the last good version; auto-updates are paused until this is fixed. Close this issue once resolved."
           else
             echo "An open failure issue already exists; not creating a duplicate."
           fi
