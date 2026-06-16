@@ -1,0 +1,22 @@
+name: Sync master with upstream Nightscout
+
+# Keeps this fork's master branch identical to nightscout/cgm-remote-monitor.
+# When master advances, Render (watching master) auto-deploys the new version.
+on:
+  schedule:
+    - cron: '0 5 * * *'   # daily at 05:00 UTC
+  workflow_dispatch:        # allows a manual run from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fast-forward master to upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fast-forwarding master to upstream nightscout/cgm-remote-monitor..."
+          gh api -X POST "repos/${{ github.repository }}/merge-upstream" -f branch=master
