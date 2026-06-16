@@ -16,11 +16,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fast-forward master to upstream
+        id: sync
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Fast-forwarding master to upstream nightscout/cgm-remote-monitor..."
+          before=$(gh api "repos/${{ github.repository }}/commits/master" --jq '.sha')
+          echo "master before: $before"
           gh api -X POST "repos/${{ github.repository }}/merge-upstream" -f branch=master
+          after=$(gh api "repos/${{ github.repository }}/commits/master" --jq '.sha')
+          echo "master after:  $after"
+          if [ "$before" != "$after" ]; then
+            ver=$(gh api "repos/${{ github.repository }}/contents/package.json?ref=master" --jq '.content' | base64 -d | jq -r .version)
+            echo "Updated to version $ver"
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+            echo "version=$ver" >> "$GITHUB_OUTPUT"
+          else
+            echo "Already up to date; no new version."
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify on successful update
+        if: steps.sync.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ver="${{ steps.sync.outputs.version }}"
+          url=$(gh issue create --repo "${{ github.repository }}" --title "Nightscout updated to v$ver" --body "master was fast-forwarded to upstream and is now v$ver. Render is auto-deploying it to https://nightscout-vzae.onrender.com -- this is just a heads-up and is auto-closed. Find past update notices under Closed issues.")
+          num="${url##*/}"
+          gh issue close "$num" --repo "${{ github.repository }}" || true
 
       - name: Open an issue if the sync failed
         if: failure()
