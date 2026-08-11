@@ -45,6 +45,41 @@ jobs:
           num="${url##*/}"
           gh issue close "$num" --repo "${{ github.repository }}" || true
 
+      # GitHub disables scheduled workflows after 60 days of repository
+      # inactivity. Upstream can stay quiet for months, so the sync above is
+      # not a reliable heartbeat -- these two steps push an empty commit to
+      # this branch every ~45 days to keep the schedule alive. Pushes made with
+      # GITHUB_TOKEN do not trigger workflows, so this cannot loop.
+      - name: Check whether a keepalive commit is due
+        id: keepalive
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="${{ github.ref_name }}"
+          last=$(gh api "repos/${{ github.repository }}/commits?sha=$branch&per_page=1" --jq '.[0].commit.committer.date')
+          age=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 86400 ))
+          echo "Newest commit on $branch: $last ($age day(s) ago)"
+          if [ "$age" -ge 45 ]; then
+            echo "Keepalive commit is due."
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No keepalive needed yet."
+            echo "due=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out this branch
+        if: always() && steps.keepalive.outputs.due == 'true'
+        uses: actions/checkout@v4
+
+      - name: Push keepalive commit
+        if: always() && steps.keepalive.outputs.due == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive so the scheduled sync is not auto-disabled"
+          git push
+
       - name: Open an issue if the sync failed
         if: failure()
         env:
