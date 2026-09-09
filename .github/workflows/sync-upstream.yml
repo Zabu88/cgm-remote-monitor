@@ -17,9 +17,18 @@ jobs:
     steps:
       - name: Fast-forward master to upstream
         id: sync
+        # Uses a personal access token rather than GITHUB_TOKEN: upstream
+        # commits sometimes touch files under .github/workflows/, and
+        # GITHUB_TOKEN is never allowed to write those, which makes
+        # merge-upstream fail with HTTP 422.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "The SYNC_TOKEN secret is not set on this repository."
+            echo "Create a token with repo + workflow scope and add it as SYNC_TOKEN."
+            exit 1
+          fi
           before=$(gh api "repos/${{ github.repository }}/commits/master" --jq '.sha')
           echo "master before: $before"
           gh api -X POST "repos/${{ github.repository }}/merge-upstream" -f branch=master
